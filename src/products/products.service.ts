@@ -3,73 +3,140 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Product } from './product.entity';
+import { FirestoreService } from '../config/firestore.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { UserRole } from '../users/user.entity';
 
 @Injectable()
 export class ProductsService {
-  constructor(
-    @InjectRepository(Product)
-    private productsRepository: Repository<Product>,
-  ) {}
+  private readonly COLLECTION = 'products';
+
+  constructor(private readonly firestoreService: FirestoreService) {}
+
+  private get col() {
+    return this.firestoreService.collection(this.COLLECTION);
+  }
 
   async findAll() {
-    return this.productsRepository.find({
-      relations: ['category'],
+    const snapshot = await this.col.get();
+    const products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    const categoriesSnapshot = await this.firestoreService
+      .collection('categories')
+      .get();
+    const categoriesMap = new Map<string, any>();
+    categoriesSnapshot.docs.forEach((doc) => {
+      categoriesMap.set(doc.id, { id: doc.id, ...doc.data() });
     });
+
+    return products.map((product: any) => ({
+      ...product,
+      category: categoriesMap.get(product.categoryId) || null,
+    }));
   }
 
-  async findOne(id: number) {
-    const product = await this.productsRepository.findOne({
-      where: { id },
-      relations: ['category'],
-    });
-    if (!product) {
+  async findOne(id: string) {
+    const doc = await this.col.doc(id).get();
+    if (!doc.exists) {
       throw new NotFoundException('Product not found');
     }
-    return product;
+
+    const productData = doc.data()!;
+    let category: any = null;
+    if (productData.categoryId) {
+      const catDoc = await this.firestoreService
+        .collection('categories')
+        .doc(productData.categoryId)
+        .get();
+      if (catDoc.exists) {
+        category = { id: catDoc.id, ...catDoc.data() };
+      }
+    }
+
+    return { id: doc.id, ...productData, category };
   }
 
-  async findByCategory(categoryId: number) {
-    return this.productsRepository.find({
-      where: { categoryId },
-      relations: ['category'],
-    });
+  async findByCategory(categoryId: string) {
+    const snapshot = await this.col
+      .where('categoryId', '==', categoryId)
+      .get();
+
+    const products = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    const catDoc = await this.firestoreService
+      .collection('categories')
+      .doc(categoryId)
+      .get();
+
+    const category = catDoc.exists
+      ? { id: catDoc.id, ...catDoc.data() }
+      : null;
+
+    return products.map((product: any) => ({
+      ...product,
+      category,
+    }));
   }
 
   async create(createProductDto: CreateProductDto, user: any) {
-    if (user.role !== UserRole.ADMIN) {
+    const userDoc = await this.firestoreService
+      .collection('users')
+      .doc(user.id)
+      .get();
+
+    if (!userDoc.exists || userDoc.data()!.role !== 'admin') {
       throw new ForbiddenException('Only admin can create products');
     }
-    const product = this.productsRepository.create(createProductDto);
-    return this.productsRepository.save(product);
+
+    const docRef = await this.col.add({
+      ...createProductDto,
+      stock: createProductDto.stock || 0,
+      createdAt: new Date().toISOString(),
+    });
+
+    return { id: docRef.id, ...createProductDto };
   }
 
-  async update(id: number, updateProductDto: UpdateProductDto, user: any) {
-    if (user.role !== UserRole.ADMIN) {
+  async update(id: string, updateProductDto: UpdateProductDto, user: any) {
+    const userDoc = await this.firestoreService
+      .collection('users')
+      .doc(user.id)
+      .get();
+
+    if (!userDoc.exists || userDoc.data()!.role !== 'admin') {
       throw new ForbiddenException('Only admin can update products');
     }
-    const product = await this.productsRepository.findOne({ where: { id } });
-    if (!product) {
+
+    const doc = await this.col.doc(id).get();
+    if (!doc.exists) {
       throw new NotFoundException('Product not found');
     }
-    Object.assign(product, updateProductDto);
-    return this.productsRepository.save(product);
+
+    await this.col.doc(id).update(updateProductDto);
+    const updated = await this.col.doc(id).get();
+
+    return { id: updated.id, ...updated.data() };
   }
 
-  async remove(id: number, user: any) {
-    if (user.role !== UserRole.ADMIN) {
+  async remove(id: string, user: any) {
+    const userDoc = await this.firestoreService
+      .collection('users')
+      .doc(user.id)
+      .get();
+
+    if (!userDoc.exists || userDoc.data()!.role !== 'admin') {
       throw new ForbiddenException('Only admin can delete products');
     }
-    const product = await this.productsRepository.findOne({ where: { id } });
-    if (!product) {
+
+    const doc = await this.col.doc(id).get();
+    if (!doc.exists) {
       throw new NotFoundException('Product not found');
     }
-    await this.productsRepository.remove(product);
+
+    await this.col.doc(id).delete();
     return { message: 'Product deleted' };
   }
 }

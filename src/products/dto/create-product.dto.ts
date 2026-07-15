@@ -8,14 +8,14 @@ import {
 
 export class CreateProductDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsOptional()
   description?: string;
 
   @IsNumber()
-  price: number;
+  price!: number;
 
   @IsInt()
   @Min(0)
@@ -26,6 +26,6 @@ export class CreateProductDto {
   @IsOptional()
   image?: string;
 
-  @IsInt()
-  categoryId: number;
+  @IsString()
+  categoryId!: string;
 }

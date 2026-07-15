@@ -7,12 +7,11 @@ import {
   Body,
   Param,
   UseGuards,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('categories')
@@ -25,20 +24,20 @@ export class CategoriesController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.categoriesService.findOne(id);
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(FirebaseAuthGuard)
   create(@Body() createCategoryDto: CreateCategoryDto, @CurrentUser() user: any) {
     return this.categoriesService.create(createCategoryDto, user);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(FirebaseAuthGuard)
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
     @CurrentUser() user: any,
   ) {
@@ -46,8 +45,8 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+  @UseGuards(FirebaseAuthGuard)
+  remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.categoriesService.remove(id, user);
   }
 }

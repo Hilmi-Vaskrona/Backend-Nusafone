@@ -7,16 +7,15 @@ import {
   Body,
   Param,
   UseGuards,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('cart')
-@UseGuards(JwtAuthGuard)
+@UseGuards(FirebaseAuthGuard)
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
@@ -32,7 +31,7 @@ export class CartController {
 
   @Patch(':id')
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @CurrentUser() user: any,
     @Body() updateCartDto: UpdateCartDto,
   ) {
@@ -40,7 +39,7 @@ export class CartController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+  remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.cartService.remove(id, user.id);
   }
 }

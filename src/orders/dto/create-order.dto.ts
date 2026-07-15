@@ -1,9 +1,9 @@
-import { IsArray, ValidateNested, IsInt, Min } from 'class-validator';
+import { IsArray, ValidateNested, IsString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class OrderItemDto {
-  @IsInt()
-  productId: number;
+  @IsString()
+  productId: string;
 
   @IsInt()
   @Min(1)

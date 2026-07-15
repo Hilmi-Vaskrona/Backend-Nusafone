@@ -5,15 +5,14 @@ import {
   Body,
   Param,
   UseGuards,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(FirebaseAuthGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
@@ -28,10 +27,7 @@ export class OrdersController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: any,
-  ) {
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.ordersService.findOne(id, user.id);
   }
 }

@@ -3,71 +3,101 @@ import {
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
-import { User } from '../users/user.entity';
-import { RegisterDto } from './dto/register.dto';
+import { FirestoreService } from '../config/firestore.service';
+import { RegisterDto, UserRole } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private readonly firestoreService: FirestoreService) {}
 
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.usersRepository.findOne({
-      where: { email: registerDto.email },
-    });
-    if (existingUser) {
+    const usersRef = this.firestoreService.collection('users');
+
+    const existing = await usersRef
+      .where('email', '==', registerDto.email)
+      .limit(1)
+      .get();
+
+    if (!existing.empty) {
       throw new ConflictException('Email already registered');
     }
 
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-    const user = this.usersRepository.create({
-      ...registerDto,
-      password: hashedPassword,
+    const userRecord = await this.firestoreService.auth.createUser({
+      email: registerDto.email,
+      password: registerDto.password,
+      displayName: registerDto.name,
     });
-    const savedUser = await this.usersRepository.save(user);
 
-    const { password, ...result } = savedUser;
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+
+    const userData = {
+      id: userRecord.uid,
+      name: registerDto.name,
+      email: registerDto.email,
+      password: hashedPassword,
+      role: registerDto.role || UserRole.USER,
+      createdAt: new Date().toISOString(),
+    };
+
+    await usersRef.doc(userRecord.uid).set(userData);
+
+    const { password, ...result } = userData;
     return result;
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.usersRepository.findOne({
-      where: { email: loginDto.email },
-    });
-    if (!user) {
+    try {
+      const userRecord = await this.firestoreService.auth.getUserByEmail(
+        loginDto.email,
+      );
+
+      const userDoc = await this.firestoreService
+        .collection('users')
+        .doc(userRecord.uid)
+        .get();
+
+      if (!userDoc.exists) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const userData = userDoc.data()!;
+      const isPasswordValid = await bcrypt.compare(
+        loginDto.password,
+        userData.password,
+      );
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const customToken = await this.firestoreService.auth.createCustomToken(
+        userRecord.uid,
+      );
+
+      return {
+        access_token: customToken,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    const isPasswordValid = await bcrypt.compare(
-      loginDto.password,
-      user.password,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const payload = { sub: user.id, email: user.email };
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
   }
 
   async getProfile(userId: string) {
-    const user = await this.usersRepository.findOne({
-      where: { id: userId },
-    });
-    if (!user) {
+    const userDoc = await this.firestoreService
+      .collection('users')
+      .doc(userId)
+      .get();
+
+    if (!userDoc.exists) {
       throw new UnauthorizedException('User not found');
     }
-    const { password, ...result } = user;
+
+    const { password, ...result } = userDoc.data()!;
     return result;
   }
 }

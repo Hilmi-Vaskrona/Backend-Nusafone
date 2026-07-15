@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
-import { Cart } from './cart.entity';
-import { Product } from '../products/product.entity';
+import { FirestoreModule } from '../config/firestore.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cart, Product])],
+  imports: [FirestoreModule],
   controllers: [CartController],
   providers: [CartService],
   exports: [CartService],

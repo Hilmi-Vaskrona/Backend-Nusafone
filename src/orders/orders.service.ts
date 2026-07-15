@@ -3,98 +3,132 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Order, OrderStatus } from './order.entity';
-import { OrderItem } from './order-item.entity';
-import { Product } from '../products/product.entity';
-import { Cart } from '../cart/cart.entity';
+import { FirestoreService } from '../config/firestore.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(
-    @InjectRepository(Order)
-    private ordersRepository: Repository<Order>,
-    @InjectRepository(OrderItem)
-    private orderItemsRepository: Repository<OrderItem>,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
-    @InjectRepository(Cart)
-    private cartRepository: Repository<Cart>,
-  ) {}
+  private readonly COLLECTION = 'orders';
+
+  constructor(private readonly firestoreService: FirestoreService) {}
+
+  private get col() {
+    return this.firestoreService.collection(this.COLLECTION);
+  }
 
   async create(userId: string, createOrderDto: CreateOrderDto) {
     let totalPrice = 0;
-    const orderItems: Partial<OrderItem>[] = [];
+    const orderItems: any[] = [];
 
     for (const item of createOrderDto.items) {
-      const product = await this.productRepository.findOne({
-        where: { id: item.productId },
-      });
-      if (!product) {
-        throw new NotFoundException(
-          `Product with id ${item.productId} not found`,
-        );
-      }
-      if (product.stock < item.quantity) {
-        throw new BadRequestException(
-          `Insufficient stock for product ${product.name}`,
-        );
+      const productDoc = await this.firestoreService
+        .collection('products')
+        .doc(item.productId)
+        .get();
+
+      if (!productDoc.exists) {
+        throw new NotFoundException(`Product with id ${item.productId} not found`);
       }
 
-      const itemPrice = Number(product.price) * item.quantity;
+      const productData = productDoc.data()!;
+      if (productData.stock < item.quantity) {
+        throw new BadRequestException(`Insufficient stock for product ${productData.name}`);
+      }
+
+      const itemPrice = Number(productData.price) * item.quantity;
       totalPrice += itemPrice;
 
       orderItems.push({
         productId: item.productId,
         quantity: item.quantity,
-        price: product.price,
+        price: productData.price,
       });
 
-      product.stock -= item.quantity;
-      await this.productRepository.save(product);
+      await productDoc.ref.update({
+        stock: productData.stock - item.quantity,
+      });
     }
 
-    const order = this.ordersRepository.create({
+    const orderData = {
       userId,
       totalPrice,
-      status: OrderStatus.PENDING,
-    });
-    const savedOrder = await this.ordersRepository.save(order);
+      status: 'pending',
+      items: orderItems,
+      createdAt: new Date().toISOString(),
+    };
 
-    for (const item of orderItems) {
-      const orderItem = this.orderItemsRepository.create({
-        ...item,
-        orderId: savedOrder.id,
-      });
-      await this.orderItemsRepository.save(orderItem);
-    }
+    const docRef = await this.col.add(orderData);
 
-    await this.cartRepository.delete({ userId });
+    const cartSnapshot = await this.firestoreService
+      .collection('cart')
+      .where('userId', '==', userId)
+      .get();
 
-    return this.ordersRepository.findOne({
-      where: { id: savedOrder.id },
-      relations: ['orderItems', 'orderItems.product'],
-    });
+    const batch = this.firestoreService.database.batch();
+    cartSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+
+    return { id: docRef.id, ...orderData };
   }
 
   async findAllByUser(userId: string) {
-    return this.ordersRepository.find({
-      where: { userId },
-      relations: ['orderItems', 'orderItems.product'],
-      order: { createdAt: 'DESC' },
-    });
+    const snapshot = await this.col
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    const orders: any[] = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    for (const order of orders) {
+      if (order.items && order.items.length > 0) {
+        const itemsWithProduct: any[] = [];
+        for (const item of order.items) {
+          const productDoc = await this.firestoreService
+            .collection('products')
+            .doc(item.productId)
+            .get();
+          itemsWithProduct.push({
+            ...item,
+            product: productDoc.exists
+              ? { id: productDoc.id, ...productDoc.data() }
+              : null,
+          });
+        }
+        order.items = itemsWithProduct;
+      }
+    }
+
+    return orders;
   }
 
-  async findOne(id: number, userId: string) {
-    const order = await this.ordersRepository.findOne({
-      where: { id, userId },
-      relations: ['orderItems', 'orderItems.product'],
-    });
-    if (!order) {
+  async findOne(id: string, userId: string) {
+    const doc = await this.col.doc(id).get();
+    if (!doc.exists || doc.data()!.userId !== userId) {
       throw new NotFoundException('Order not found');
     }
-    return order;
+
+    const orderData: any = doc.data()!;
+
+    if (orderData.items && orderData.items.length > 0) {
+      const itemsWithProduct: any[] = [];
+      for (const item of orderData.items) {
+        const productDoc = await this.firestoreService
+          .collection('products')
+          .doc(item.productId)
+          .get();
+        itemsWithProduct.push({
+          ...item,
+          product: productDoc.exists
+            ? { id: productDoc.id, ...productDoc.data() }
+            : null,
+        });
+      }
+      orderData.items = itemsWithProduct;
+    }
+
+    return { id: doc.id, ...orderData };
   }
 }

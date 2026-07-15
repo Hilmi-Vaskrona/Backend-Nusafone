@@ -1,5 +1,9 @@
 import { IsString, IsEmail, MinLength, IsEnum } from 'class-validator';
-import { UserRole } from '../../users/user.entity';
+
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+}
 
 export class RegisterDto {
   @IsString()

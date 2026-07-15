@@ -1,23 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { FirestoreService } from '../config/firestore.service';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-  ) {}
+  constructor(private readonly firestoreService: FirestoreService) {}
 
   async getProfile(userId: string) {
-    const user = await this.usersRepository.findOne({
-      where: { id: userId },
-    });
-    if (!user) {
+    const userDoc = await this.firestoreService
+      .collection('users')
+      .doc(userId)
+      .get();
+
+    if (!userDoc.exists) {
       throw new NotFoundException('User not found');
     }
-    const { password, ...result } = user;
+
+    const { password, ...result } = userDoc.data()!;
     return result;
   }
 }
