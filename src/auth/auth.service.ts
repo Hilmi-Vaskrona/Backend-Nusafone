@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { FirestoreService } from '../config/firestore.service';
@@ -17,6 +18,10 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
+    if (registerDto.password !== registerDto.confirmPassword) {
+      throw new BadRequestException('Password and confirm password do not match');
+    }
+
     const usersRef = this.firestoreService.collection('users');
 
     const existing = await usersRef
