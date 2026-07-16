@@ -12,11 +12,17 @@ export function initializeFirebase(): App {
     return firebaseApp;
   }
 
-  const serviceAccountPath = path.resolve(
-    process.cwd(),
-    'serviceAccountKey.json',
-  );
-  const serviceAccount = require(serviceAccountPath);
+  let serviceAccount: any;
+
+  if (process.env.SERVICE_ACCOUNT_KEY) {
+    serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY);
+  } else {
+    const serviceAccountPath = path.resolve(
+      process.cwd(),
+      'serviceAccountKey.json',
+    );
+    serviceAccount = require(serviceAccountPath);
+  }
 
   firebaseApp = initializeApp({
     credential: cert(serviceAccount),

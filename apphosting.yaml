@@ -1,0 +1,6 @@
+runConfig:
+  runCommand: node dist/main
+  environmentVariables:
+    - variable: NODE_ENV
+      value: production
+      availability: RUNTIME

@@ -1,0 +1,14 @@
+version: v1
+runConfig:
+  runCommand: node dist/main
+  environmentVariables:
+    - variable: NODE_ENV
+      value: production
+      availability: RUNTIME
+outputFiles:
+  serverApp:
+    include:
+      - dist
+      - node_modules
+      - package.json
+      - package-lock.json

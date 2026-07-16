@@ -44,6 +44,7 @@ lerna-debug.log*
 
 # Firebase
 serviceAccountKey.json
+.firebase
 
 # temp directory
 .temp
