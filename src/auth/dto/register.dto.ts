@@ -1,4 +1,4 @@
-import { IsString, IsEmail, MinLength, IsEnum, Matches } from 'class-validator';
+import { IsString, IsEmail, MinLength, IsEnum } from 'class-validator';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -14,9 +14,6 @@ export class RegisterDto {
 
   @IsString()
   @MinLength(6)
-  @Matches(/^(?=.*[a-zA-Z])(?=.*\d).+$/, {
-    message: 'Password must contain at least one letter and one number',
-  })
   password: string;
 
   @IsString()
