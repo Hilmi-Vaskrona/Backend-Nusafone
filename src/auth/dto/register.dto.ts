@@ -7,17 +7,17 @@ export enum UserRole {
 
 export class RegisterDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @IsString()
-  confirmPassword: string;
+  confirmPassword!: string;
 
   @IsEnum(UserRole)
   role?: UserRole;
