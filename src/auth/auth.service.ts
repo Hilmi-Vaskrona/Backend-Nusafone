@@ -28,16 +28,11 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    const userRecord = await this.firestoreService.auth.createUser({
-      email: registerDto.email,
-      password: registerDto.password,
-      displayName: registerDto.name,
-    });
-
+    const id = await this.firestoreService.getNextId('users');
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
     const userData = {
-      id: userRecord.uid,
+      id,
       name: registerDto.name,
       email: registerDto.email,
       password: hashedPassword,
@@ -45,7 +40,7 @@ export class AuthService {
       createdAt: new Date().toISOString(),
     };
 
-    await usersRef.doc(userRecord.uid).set(userData);
+    await usersRef.doc(String(id)).set(userData);
 
     const { password, ...result } = userData;
     return result;
@@ -80,10 +75,10 @@ export class AuthService {
     return { access_token };
   }
 
-  async getProfile(userId: string) {
+  async getProfile(userId: number) {
     const userDoc = await this.firestoreService
       .collection('users')
-      .doc(userId)
+      .doc(String(userId))
       .get();
 
     if (!userDoc.exists) {

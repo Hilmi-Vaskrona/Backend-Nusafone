@@ -1,11 +1,9 @@
 import { initializeApp, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import { getAuth, Auth } from 'firebase-admin/auth';
 import * as path from 'path';
 
 let firebaseApp: App;
 let firestore: Firestore;
-let auth: Auth;
 
 export function initializeFirebase(): App {
   if (firebaseApp) {
@@ -30,7 +28,6 @@ export function initializeFirebase(): App {
 
   firestore = getFirestore(firebaseApp);
   firestore.settings({ ignoreUndefinedProperties: true });
-  auth = getAuth(firebaseApp);
 
   return firebaseApp;
 }
@@ -40,11 +37,4 @@ export function getFirestoreInstance(): Firestore {
     initializeFirebase();
   }
   return firestore;
-}
-
-export function getAuthInstance(): Auth {
-  if (!auth) {
-    initializeFirebase();
-  }
-  return auth;
 }
