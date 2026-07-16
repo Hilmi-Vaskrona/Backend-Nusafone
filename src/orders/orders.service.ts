@@ -17,70 +17,82 @@ export class OrdersService {
   }
 
   async create(userId: string, createOrderDto: CreateOrderDto) {
+    const cartSnapshot = await this.firestoreService
+      .collection('cart')
+      .where('userId', '==', userId)
+      .get();
+
+    if (cartSnapshot.empty) {
+      throw new BadRequestException('Cart is empty');
+    }
+
     let totalPrice = 0;
     const orderItems: any[] = [];
 
-    for (const item of createOrderDto.items) {
+    for (const cartDoc of cartSnapshot.docs) {
+      const cartData = cartDoc.data();
+      const productId = cartData.productId;
+      const quantity = cartData.quantity;
+
       const productDoc = await this.firestoreService
         .collection('products')
-        .doc(item.productId)
+        .doc(productId)
         .get();
 
       if (!productDoc.exists) {
-        throw new NotFoundException(`Product with id ${item.productId} not found`);
+        throw new NotFoundException(`Product with id ${productId} not found`);
       }
 
       const productData = productDoc.data()!;
-      if (productData.stock < item.quantity) {
+      if (productData.stock < quantity) {
         throw new BadRequestException(`Insufficient stock for product ${productData.name}`);
       }
 
-      const itemPrice = Number(productData.price) * item.quantity;
+      const itemPrice = Number(productData.price) * quantity;
       totalPrice += itemPrice;
 
       orderItems.push({
-        productId: item.productId,
-        quantity: item.quantity,
+        productId,
+        quantity,
         price: productData.price,
       });
 
       await productDoc.ref.update({
-        stock: productData.stock - item.quantity,
+        stock: productData.stock - quantity,
       });
     }
 
+    const id = await this.firestoreService.getNextId(this.COLLECTION);
     const orderData = {
       userId,
+      address: createOrderDto.address,
+      note: createOrderDto.note || '',
       totalPrice,
       status: 'pending',
       items: orderItems,
       createdAt: new Date().toISOString(),
     };
 
-    const docRef = await this.col.add(orderData);
-
-    const cartSnapshot = await this.firestoreService
-      .collection('cart')
-      .where('userId', '==', userId)
-      .get();
+    await this.col.doc(String(id)).set(orderData);
 
     const batch = this.firestoreService.database.batch();
     cartSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
 
-    return { id: docRef.id, ...orderData };
+    return { id, ...orderData };
   }
 
   async findAllByUser(userId: string) {
     const snapshot = await this.col
       .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
       .get();
 
     const orders: any[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
+      id: Number(doc.id),
       ...doc.data(),
     }));
+
+    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     for (const order of orders) {
       if (order.items && order.items.length > 0) {
@@ -129,6 +141,6 @@ export class OrdersService {
       orderData.items = itemsWithProduct;
     }
 
-    return { id: doc.id, ...orderData };
+    return { id: Number(doc.id), ...orderData };
   }
 }

@@ -11,7 +11,7 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('products')
@@ -34,13 +34,13 @@ export class ProductsController {
   }
 
   @Post()
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(JwtAuthGuard)
   create(@Body() createProductDto: CreateProductDto, @CurrentUser() user: any) {
     return this.productsService.create(createProductDto, user);
   }
 
   @Patch(':id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
@@ -50,7 +50,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.productsService.remove(id, user);
   }

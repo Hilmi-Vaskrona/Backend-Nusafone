@@ -2,7 +2,7 @@ import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { FirebaseAuthGuard } from './guards/firebase-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('auth')
@@ -20,7 +20,7 @@ export class AuthController {
   }
 
   @Get('profile')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(JwtAuthGuard)
   getProfile(@CurrentUser() user: any) {
     return this.authService.getProfile(user.id);
   }

@@ -19,7 +19,7 @@ export class CategoriesService {
 
   async findAll() {
     const snapshot = await this.col.get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => ({ id: Number(doc.id), ...doc.data() }));
   }
 
   async findOne(id: string) {
@@ -34,11 +34,11 @@ export class CategoriesService {
       .get();
 
     const products = productsSnapshot.docs.map((d) => ({
-      id: d.id,
+      id: Number(d.id),
       ...d.data(),
     }));
 
-    return { id: doc.id, ...doc.data(), products };
+    return { id: Number(doc.id), ...doc.data(), products };
   }
 
   async create(createCategoryDto: CreateCategoryDto, user: any) {
@@ -51,12 +51,11 @@ export class CategoriesService {
       throw new ForbiddenException('Only admin can create categories');
     }
 
-    const docRef = await this.col.add({
-      ...createCategoryDto,
-      createdAt: new Date().toISOString(),
-    });
+    const id = await this.firestoreService.getNextId(this.COLLECTION);
+    const data = { ...createCategoryDto, createdAt: new Date().toISOString() };
+    await this.col.doc(String(id)).set(data);
 
-    return { id: docRef.id, ...createCategoryDto };
+    return { id, ...data };
   }
 
   async update(id: string, updateCategoryDto: UpdateCategoryDto, user: any) {
@@ -74,10 +73,10 @@ export class CategoriesService {
       throw new NotFoundException('Category not found');
     }
 
-    await this.col.doc(id).update(updateCategoryDto);
+    await this.col.doc(id).update({ ...updateCategoryDto });
     const updated = await this.col.doc(id).get();
 
-    return { id: updated.id, ...updated.data() };
+    return { id: Number(updated.id), ...updated.data() };
   }
 
   async remove(id: string, user: any) {

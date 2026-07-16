@@ -19,14 +19,14 @@ export class ProductsService {
 
   async findAll() {
     const snapshot = await this.col.get();
-    const products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const products = snapshot.docs.map((doc) => ({ id: Number(doc.id), ...doc.data() }));
 
     const categoriesSnapshot = await this.firestoreService
       .collection('categories')
       .get();
     const categoriesMap = new Map<string, any>();
     categoriesSnapshot.docs.forEach((doc) => {
-      categoriesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      categoriesMap.set(doc.id, { id: Number(doc.id), ...doc.data() });
     });
 
     return products.map((product: any) => ({
@@ -49,11 +49,11 @@ export class ProductsService {
         .doc(productData.categoryId)
         .get();
       if (catDoc.exists) {
-        category = { id: catDoc.id, ...catDoc.data() };
+        category = { id: Number(catDoc.id), ...catDoc.data() };
       }
     }
 
-    return { id: doc.id, ...productData, category };
+    return { id: Number(doc.id), ...productData, category };
   }
 
   async findByCategory(categoryId: string) {
@@ -62,7 +62,7 @@ export class ProductsService {
       .get();
 
     const products = snapshot.docs.map((doc) => ({
-      id: doc.id,
+      id: Number(doc.id),
       ...doc.data(),
     }));
 
@@ -72,7 +72,7 @@ export class ProductsService {
       .get();
 
     const category = catDoc.exists
-      ? { id: catDoc.id, ...catDoc.data() }
+      ? { id: Number(catDoc.id), ...catDoc.data() }
       : null;
 
     return products.map((product: any) => ({
@@ -91,13 +91,16 @@ export class ProductsService {
       throw new ForbiddenException('Only admin can create products');
     }
 
-    const docRef = await this.col.add({
+    const id = await this.firestoreService.getNextId(this.COLLECTION);
+    const data = {
       ...createProductDto,
+      categoryId: String(createProductDto.categoryId),
       stock: createProductDto.stock || 0,
       createdAt: new Date().toISOString(),
-    });
+    };
+    await this.col.doc(String(id)).set(data);
 
-    return { id: docRef.id, ...createProductDto };
+    return { id, ...data };
   }
 
   async update(id: string, updateProductDto: UpdateProductDto, user: any) {
@@ -115,10 +118,14 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
-    await this.col.doc(id).update(updateProductDto);
+    const updateData = { ...updateProductDto };
+    if (updateData.categoryId !== undefined) {
+      updateData.categoryId = String(updateData.categoryId) as any;
+    }
+    await this.col.doc(id).update(updateData);
     const updated = await this.col.doc(id).get();
 
-    return { id: updated.id, ...updated.data() };
+    return { id: Number(updated.id), ...updated.data() };
   }
 
   async remove(id: string, user: any) {

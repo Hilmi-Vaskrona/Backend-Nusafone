@@ -23,6 +23,7 @@ export function initializeFirebase(): App {
   });
 
   firestore = getFirestore(firebaseApp);
+  firestore.settings({ ignoreUndefinedProperties: true });
   auth = getAuth(firebaseApp);
 
   return firebaseApp;

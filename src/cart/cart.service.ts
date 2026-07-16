@@ -20,7 +20,7 @@ export class CartService {
   async findAllByUser(userId: string) {
     const snapshot = await this.col.where('userId', '==', userId).get();
     const cartItems = snapshot.docs.map((doc) => ({
-      id: doc.id,
+      id: Number(doc.id),
       ...doc.data(),
     }));
 
@@ -33,7 +33,7 @@ export class CartService {
         .doc(productId)
         .get();
       if (productDoc.exists) {
-        productsMap.set(productId, { id: productDoc.id, ...productDoc.data() });
+        productsMap.set(productId, { id: Number(productDoc.id), ...productDoc.data() });
       }
     }
 
@@ -44,9 +44,10 @@ export class CartService {
   }
 
   async create(userId: string, createCartDto: CreateCartDto) {
+    const productId = String(createCartDto.productId);
     const productDoc = await this.firestoreService
       .collection('products')
-      .doc(createCartDto.productId)
+      .doc(productId)
       .get();
 
     if (!productDoc.exists) {
@@ -60,7 +61,7 @@ export class CartService {
 
     const existing = await this.col
       .where('userId', '==', userId)
-      .where('productId', '==', createCartDto.productId)
+      .where('productId', '==', productId)
       .limit(1)
       .get();
 
@@ -71,19 +72,20 @@ export class CartService {
         throw new BadRequestException('Insufficient stock');
       }
       await doc.ref.update({ quantity: newQuantity });
-      return { id: doc.id, userId, productId: createCartDto.productId, quantity: newQuantity };
+      return { id: Number(doc.id), userId, productId, quantity: newQuantity };
     }
 
-    const docRef = await this.col.add({
+    const id = await this.firestoreService.getNextId(this.COLLECTION);
+    await this.col.doc(String(id)).set({
       userId,
-      productId: createCartDto.productId,
+      productId,
       quantity: createCartDto.quantity,
     });
 
     return {
-      id: docRef.id,
+      id,
       userId,
-      productId: createCartDto.productId,
+      productId,
       quantity: createCartDto.quantity,
     };
   }
@@ -108,7 +110,7 @@ export class CartService {
     }
 
     const updated = await this.col.doc(id).get();
-    return { id: updated.id, ...updated.data() };
+    return { id: Number(updated.id), ...updated.data() };
   }
 
   async remove(id: string, userId: string) {
